@@ -62,13 +62,6 @@ SyncSessionType = Union[ClientSession, SyncSession, SyncTransaction, None]
 
 
 class BaseCursor(Generic[ModelType]):
-    """This object has to be built from the [odmantic.engine.AIOEngine.find][] method.
-
-    An AIOCursor object support multiple async operations:
-
-      - **async for**: asynchronously iterate over the query results
-      - **await** : when awaited it will return a list of the fetched models
-    """
 
     def __init__(
         self,
@@ -80,21 +73,12 @@ class BaseCursor(Generic[ModelType]):
         self._results: Optional[List[ModelType]] = None
 
     def _parse_document(self, raw_doc: Dict) -> ModelType:
-        instance = self._model.model_validate_doc(raw_doc)
-        object.__setattr__(instance, "__fields_modified__", set())
-        return instance
+        pass
 
 
 class AIOCursor(
     BaseCursor[ModelType], AsyncIterable[ModelType], Awaitable[List[ModelType]]
 ):
-    """This object has to be built from the [odmantic.engine.AIOEngine.find][] method.
-
-    An AIOCursor object support multiple async operations:
-
-      - **async for**: asynchronously iterate over the query results
-      - **await** : when awaited it will return a list of the fetched models
-    """
 
     _cursor: "AsyncIOMotorCursor"
 
@@ -126,12 +110,6 @@ class AIOCursor(
 
 
 class SyncCursor(BaseCursor[ModelType], Iterable[ModelType]):
-    """This object has to be built from the [odmantic.engine.SyncEngine.find][] method.
-
-    A SyncCursor object supports iterating over the query results using **`for`**.
-
-    To get a list of all the results you can wrap it with `list`, as in `list(cursor)`.
-    """
 
     _cursor: "CommandCursor"
 
@@ -155,17 +133,12 @@ _FORBIDDEN_DATABASE_CHARACTERS = set(("/", "\\", ".", '"', "$"))
 
 
 class BaseEngine:
-    """The BaseEngine is the base class for the async and sync engines. It holds the
-    common functionality, like generating the MongoDB queries, that is then used by the
-    two engines.
-    """
 
     def __init__(
         self,
         client: Union["AsyncIOMotorClient", "MongoClient"],
         database: str = "test",
     ):
-        # https://docs.mongodb.com/manual/reference/limits/#naming-restrictions
         forbidden_characters = _FORBIDDEN_DATABASE_CHARACTERS.intersection(
             set(database)
         )
@@ -215,7 +188,6 @@ class BaseEngine:
                                 ),
                             ],
                             "as": odm_reference.key_name,
-                            # FIXME if ref field name is an existing key_name ?
                         }
                     },
                     {  # Preserves document with unbound references
@@ -293,9 +265,6 @@ class BaseEngine:
 
 
 class AIOEngine(BaseEngine):
-    """The AIOEngine object is responsible for handling database operations with MongoDB
-    in an asynchronous way using motor.
-    """
 
     client: "AsyncIOMotorClient"
     database: "AsyncIOMotorDatabase"
@@ -391,44 +360,10 @@ class AIOEngine(BaseEngine):
                         raise
 
     def session(self) -> AIOSession:
-        """Get a new session for the engine to allow ordering sequential operations.
-
-        Returns:
-            a new session object
-
-        Example usage:
-
-        ```python
-        engine = AIOEngine(...)
-        async with engine.session() as session:
-            john = await session.find(User, User.name == "John")
-            john.name = "Doe"
-            await session.save(john)
-        ```
-        """
-        return AIOSession(self)
+        pass
 
     def transaction(self) -> AIOTransaction:
-        """Get a new transaction for the engine to aggregate sequential operations.
-
-        Returns:
-            a new transaction object
-
-        Example usage:
-        ```python
-        engine = AIOEngine(...)
-        async with engine.transaction() as transaction:
-            john = transaction.find(User, User.name == "John")
-            john.name = "Doe"
-            await transaction.save(john)
-            await transaction.commit()
-        ```
-
-        Warning:
-            MongoDB transaction are only supported on replicated clusters: either
-            directly a replicaSet or a sharded cluster with replication enabled.
-        """
-        return AIOTransaction(self)
+        pass
 
     def find(
         self,
@@ -639,7 +574,6 @@ class AIOEngine(BaseEngine):
         Raises:
             DocumentNotFoundError: the instance has not been persisted to the database
         """
-        # TODO handle cascade deletion
         collection = self.database[instance.__collection__]
         pk_name = instance.__primary_field__
         result = await collection.delete_many(
@@ -713,9 +647,6 @@ class AIOEngine(BaseEngine):
 
 
 class SyncEngine(BaseEngine):
-    """The SyncEngine object is responsible for handling database operations with
-    MongoDB in an synchronous way using pymongo.
-    """
 
     client: "MongoClient"
     database: "Database"
@@ -801,44 +732,10 @@ class SyncEngine(BaseEngine):
                         raise
 
     def session(self) -> SyncSession:
-        """Get a new session for the engine to allow ordering sequential operations.
-
-        Returns:
-            a new session object
-
-        Example usage:
-
-        ```python
-        engine = SyncEngine(...)
-        with engine.session() as session:
-            john = session.find(User, User.name == "John")
-            john.name = "Doe"
-            session.save(john)
-        ```
-        """
-        return SyncSession(self)
+        pass
 
     def transaction(self) -> SyncTransaction:
-        """Get a new transaction for the engine to aggregate sequential operations.
-
-        Returns:
-            a new transaction object
-
-        Example usage:
-        ```python
-        engine = SyncEngine(...)
-        with engine.transaction() as transaction:
-            john = transaction.find(User, User.name == "John")
-            john.name = "Doe"
-            transaction.save(john)
-            transaction.commit()
-        ```
-
-        Warning:
-            MongoDB transaction are only supported on replicated clusters: either
-            directly a replicaSet or a sharded cluster with replication enabled.
-        """
-        return SyncTransaction(self)
+        pass
 
     def find(
         self,
@@ -1044,7 +941,6 @@ class SyncEngine(BaseEngine):
             DocumentNotFoundError: the instance has not been persisted to the database
 
         """
-        # TODO handle cascade deletion
         collection = self.database[instance.__collection__]
         pk_name = instance.__primary_field__
         result = collection.delete_many(

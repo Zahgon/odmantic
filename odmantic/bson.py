@@ -22,7 +22,6 @@ from odmantic.typing import Annotated, get_args, get_origin
 
 @dataclass(frozen=True)
 class WithBsonSerializer:
-    """Adds a BSON serializer to use on a field when it will be saved to the database"""
 
     bson_serializer: Callable[[Any], Any]
 
@@ -45,10 +44,7 @@ class ObjectId(bson.ObjectId):
         _handler: Callable[[Any], core_schema.CoreSchema],
     ) -> core_schema.CoreSchema:
         def validate_from_string_or_bytes(value: Union[str, bytes]) -> bson.ObjectId:
-            try:
-                return bson.ObjectId(value)
-            except bson.errors.InvalidId:
-                raise ValueError("Invalid ObjectId")
+            pass
 
         from_string_or_bytes_schema = core_schema.chain_schema(
             [
@@ -97,7 +93,7 @@ class Int64(bson.Int64):
         _handler: Callable[[Any], core_schema.CoreSchema],
     ) -> core_schema.CoreSchema:
         def validate_from_int(value: int) -> bson.int64.Int64:
-            return bson.int64.Int64(value)
+            pass
 
         from_int_schema = core_schema.chain_schema(
             [
@@ -120,7 +116,6 @@ class Int64(bson.Int64):
     def __get_pydantic_json_schema__(
         cls, _core_schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
     ) -> JsonSchemaValue:
-        # Use the same schema that would be used for `int`
         return handler(core_schema.int_schema())
 
 
@@ -137,10 +132,7 @@ class Decimal128(bson.decimal128.Decimal128):
         def validate_from_decimal_repr(
             value: Union[decimal.Decimal, float, str, Tuple[int, Sequence[int], int]],
         ) -> bson.decimal128.Decimal128:
-            try:
-                return bson.decimal128.Decimal128(value)
-            except Exception:
-                raise ValueError("Invalid Decimal128 value")
+            pass
 
         from_decimal_repr_schema = core_schema.no_info_plain_validator_function(
             validate_from_decimal_repr
@@ -175,7 +167,7 @@ class Binary(bson.binary.Binary):
         def validate_from_bytes(
             value: bytes,
         ) -> bson.binary.Binary:
-            return bson.binary.Binary(value)
+            pass
 
         from_bytes_schema = core_schema.chain_schema(
             [
@@ -203,28 +195,19 @@ class Binary(bson.binary.Binary):
 def validate_pattern_from_str(
     value: str,
 ) -> Pattern:
-    try:
-        return re.compile(value)
-    except Exception:
-        raise ValueError("Invalid Pattern value")
+    pass
 
 
 def validate_regex_from_pattern(
     value: Pattern,
 ) -> bson.regex.Regex:
-    try:
-        return bson.regex.Regex(value.pattern, flags=value.flags)
-    except Exception:
-        raise ValueError("Invalid Regex value")
+    pass
 
 
 def validate_pattern_from_regex(
     value: bson.regex.Regex,
 ) -> Pattern:
-    try:
-        return re.compile(value.pattern, flags=value.flags)
-    except Exception:
-        raise ValueError("Invalid Pattern value")
+    pass
 
 
 class Regex(bson.regex.Regex):
@@ -324,13 +307,7 @@ class _datetime(datetime):
         def validate_mongo_datetime(
             d: datetime,
         ) -> datetime:
-            # MongoDB does not store timezone info
-            # https://docs.python.org/3/library/datetime.html#determining-if-an-object-is-aware-or-naive
-            if d.tzinfo is not None and d.tzinfo.utcoffset(d) != timedelta(0):
-                raise ValueError("datetime objects must be naive (no timezone info)")
-            # Truncate microseconds to milliseconds to comply with Mongo behavior
-            microsecs = d.microsecond - d.microsecond % 1000
-            return d.replace(microsecond=microsecs)
+            pass
 
         mongo_datetime_schema = core_schema.chain_schema(
             [
@@ -351,11 +328,6 @@ class _datetime(datetime):
 
 
 class _decimalDecimalPydanticAnnotation:
-    """This specific BSON substitution field helps to handle the support of standard
-    python Decimal objects
-
-    https://api.mongodb.com/python/current/faq.html?highlight=decimal#how-can-i-store-decimal-decimal-instances
-    """
 
     @classmethod
     def __get_pydantic_core_schema__(
@@ -366,7 +338,7 @@ class _decimalDecimalPydanticAnnotation:
         def validate_from_decimal128(
             value: bson.decimal128.Decimal128,
         ) -> decimal.Decimal:
-            return value.to_decimal()
+            pass
 
         decimal128_schema = core_schema.chain_schema(
             [
@@ -378,10 +350,7 @@ class _decimalDecimalPydanticAnnotation:
         def validate_from_str(
             value: str,
         ) -> decimal.Decimal:
-            try:
-                return decimal.Decimal(value)
-            except decimal.InvalidOperation:
-                raise ValueError("Invalid decimal string")
+            pass
 
         str_schema = core_schema.chain_schema(
             [
@@ -416,11 +385,6 @@ BSON_TYPES_ENCODERS: Dict[Type, Callable] = {
 
 
 class BaseBSONModel(BaseModel):
-    """Equivalent of `pydantic.BaseModel` supporting BSON types serialization.
-
-    If you want to apply other custom JSON encoders, you'll need to use
-    [BSON_TYPES_ENCODERS][odmantic.bson.BSON_TYPES_ENCODERS] directly.
-    """
 
     model_config = {"json_encoders": BSON_TYPES_ENCODERS}
 

@@ -49,7 +49,6 @@ def Field(
     index: bool = False,
     unique: bool = False,
     default_factory: Optional["NoArgAnyCallable"] = None,
-    # alias: str = None, # FIXME not supported yet
     title: Optional[str] = None,
     description: Optional[str] = None,
     json_schema_extra: JsonDict | Callable[[JsonDict], None] | None = None,
@@ -126,13 +125,9 @@ def Field(
     # noqa: DAR101
     -->
     """
-    # Perform casts on optional fields to avoid incompatibility due to the strict
-    # optional mypy setting
-    # TODO: add remaining validation fields from pydantic
     pydantic_field = PDField(
         default,
         default_factory=default_factory,
-        # alias=alias,  # FIXME check aliases compatibility
         title=cast(str, title),
         description=cast(str, description),
         examples=examples,
@@ -172,7 +167,6 @@ def Field(
 
 
 class ODMFieldInfo:
-    """Extra data for an ODM field."""
 
     __slots__ = ("pydantic_field_info", "primary_field", "key_name", "index", "unique")
 
@@ -201,7 +195,7 @@ class ODMBaseField(metaclass=abc.ABCMeta):
         self.model_config = model_config
 
     def bind_pydantic_field(self, field: FieldInfo) -> None:
-        self.pydantic_field = field
+        pass
 
     def is_required_in_doc(self) -> bool:
         if self.model_config["parse_doc_with_default_factories"]:
@@ -229,7 +223,6 @@ class ODMBaseIndexableField(ODMBaseField, metaclass=abc.ABCMeta):
 
 
 class ODMField(ODMBaseIndexableField):
-    """Used to interact with the ODM model class."""
 
     __slots__ = ("primary_field",)
     __allowed_operators__ = set(
@@ -249,16 +242,12 @@ class ODMField(ODMBaseIndexableField):
         self.primary_field = primary_field
 
     def get_default_importing_value(self) -> Any:
-        # The default importing value doesn't consider the default_factory setting by
-        # default as it could result in inconsistent behaviors for datetime.now
-        # factories for example
         return self.pydantic_field.get_default(  # type: ignore[call-overload]
             call_default_factory=self.model_config["parse_doc_with_default_factories"]
         )
 
 
 class ODMReference(ODMBaseField):
-    """Field pointing on a referenced model."""
 
     __slots__ = ("model",)
     __allowed_operators__ = set(("eq", "ne", "in_", "not_in"))
@@ -294,7 +283,6 @@ class ODMEmbedded(ODMField):
 
 
 class ODMEmbeddedGeneric(ODMField):
-    # Only dict,set and list are "officially" supported for now
     __slots__ = ("model", "generic_origin")
     __allowed_operators__ = set(("eq", "ne"))
 
@@ -319,7 +307,6 @@ class ODMEmbeddedGeneric(ODMField):
 
 
 class KeyNameProxy(str):
-    """Used to provide the `++` operator enabling reference key name creation"""
 
     def __pos__(self) -> str:
         return f"${self}"
@@ -333,14 +320,7 @@ class FieldProxy:
         self.field = field
 
     def _get_key_name(self) -> str:
-        parent: Optional[FieldProxy] = object.__getattribute__(self, "parent")
-        field: ODMBaseField = object.__getattribute__(self, "field")
-
-        if parent is None:
-            return field.key_name
-
-        parent_name: str = object.__getattribute__(parent, "_get_key_name")()
-        return f"{parent_name}.{field.key_name}"
+        pass
 
     def __getattribute__(self, name: str) -> Any:
         if name == "__class__":  # support `isinstance` for python < 3.7

@@ -12,7 +12,6 @@ ModelType = TypeVar("ModelType")
 
 
 class BaseEngineException(Exception, metaclass=ABCMeta):
-    """Base Exception raised by the engine while operating with the database."""
 
     def __init__(self, message: str, model: Type["Model"]):
         self.model: Type["Model"] = model
@@ -20,11 +19,6 @@ class BaseEngineException(Exception, metaclass=ABCMeta):
 
 
 class DocumentNotFoundError(BaseEngineException):
-    """The targetted document has not been found by the engine.
-
-    Attributes:
-      instance: the instance that has not been found
-    """
 
     def __init__(self, instance: "Model"):
         self.instance: "Model" = instance
@@ -36,12 +30,6 @@ class DocumentNotFoundError(BaseEngineException):
 
 
 class DuplicateKeyError(BaseEngineException):
-    """The targetted document is duplicated according to a unique index.
-
-    Attributes:
-      instance: the instance that has not been found
-      driver_error: the original driver error
-    """
 
     def __init__(
         self, instance: "Model", driver_error: pymongo.errors.DuplicateKeyError
@@ -93,14 +81,6 @@ def IncorrectGenericEmbeddedModelValue(value: Any) -> PydanticCustomError:
 
 
 class DocumentParsingError(ValueError):
-    """Unable to parse the document into an instance.
-
-    Inherits from the `ValidationError` defined by Pydantic.
-
-    Attributes:
-      model (Union[Type[Model],Type[EmbeddedModel]]): model which could not be
-        instanciated
-    """
 
     def __init__(
         self,

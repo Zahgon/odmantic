@@ -7,17 +7,6 @@ if TYPE_CHECKING:
 
 
 class QueryExpression(Dict[str, Any]):
-    """Base object used to build queries.
-
-    All comparison and logical operators returns `QueryExpression` objects.
-
-    The `|` and `&` operators are supported for respectively the
-    [or][odmantic.query.or_] and the [and][odmantic.query.and_] logical operators.
-
-    Warning:
-        When using those operators make sure to correctly bracket the expressions
-        to avoid python operator precedence issues.
-    """
 
     def __repr__(self) -> str:
         parent_repr = super().__repr__()
@@ -51,7 +40,6 @@ def nor_(*elements: QueryDictBool) -> QueryExpression:
 
 
 def _cmp_expression(f: "FieldProxy", op: str, cmp_value: Any) -> QueryExpression:
-    # FIXME 🤮🤮🤮🤮🤮🤮🤮🤮🤮🤮🤮🤮🤮🤮🤮🤮
     from odmantic.model import EmbeddedModel
 
     if isinstance(cmp_value, EmbeddedModel):
@@ -108,8 +96,6 @@ def not_in(field: FieldProxyAny, sequence: Iterable) -> QueryExpression:
 
 def match(field: FieldProxyAny, pattern: Union[Pattern, str]) -> QueryExpression:
     """Select instances where `field` matches the `pattern` regular expression."""
-    # FIXME might create incompatibilities
-    # https://docs.mongodb.com/manual/reference/operator/query/regex/#regex-and-not
     if isinstance(pattern, str):
         r = re.compile(pattern)
     else:
@@ -118,7 +104,6 @@ def match(field: FieldProxyAny, pattern: Union[Pattern, str]) -> QueryExpression
 
 
 class SortExpression(Dict[str, Literal[-1, 1]]):
-    """Base object used to build sort queries."""
 
     def __repr__(self) -> str:
         parent_repr = super().__repr__()

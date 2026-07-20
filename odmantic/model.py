@@ -113,12 +113,7 @@ def should_touch_field(value: Any = None, type_: Optional[Type] = None) -> bool:
 
 
 def find_duplicate_key(fields: Iterable[ODMBaseField]) -> Optional[str]:
-    seen: Set[str] = set()
-    for f in fields:
-        if f.key_name in seen:
-            return f.key_name
-        seen.add(f.key_name)
-    return None
+    pass
 
 
 _IMMUTABLE_TYPES = (
@@ -171,7 +166,6 @@ def is_type_mutable(type_: Type) -> bool:
 
 def is_type_forbidden(t: Type) -> bool:
     if t is Callable or t is abcCallable:
-        # Callable type require a special treatment since typing.Callable is not a class
         return True
     return False
 
@@ -192,17 +186,9 @@ def validate_type(type_: Type) -> Type:
     if type_origin is not None and type_origin is not Literal:
         type_args: Tuple[Type, ...] = get_args(type_)
         new_arg_types = tuple(validate_type(subtype) for subtype in type_args)
-        # FIXME: remove this hack when a better solution to handle dynamic
-        # generics is found
-        # https://github.com/pydantic/pydantic/issues/8354
         if type_origin is Union or type_origin is getattr(types, "UnionType", Union):
-            # as new_arg_types is a tuple, we can directly create a matching Union
-            # instance, instead of hacking our way around it:
-            # https://stackoverflow.com/a/72884529/3784643
             type_ = Union[new_arg_types]  # type: ignore
         elif type_origin is Annotated:
-            # Annotated types must be reconstructed using Annotated[...] syntax
-            # to preserve __metadata__. Using GenericAlias creates a broken type.
             type_ = Annotated[new_arg_types]  # type: ignore
         else:
             type_ = GenericAlias(type_origin, new_arg_types)  # type: ignore
@@ -224,7 +210,6 @@ class BaseModelMetaclass(pydantic._internal._model_construction.ModelMetaclass):
         bson_serializers: Dict[str, Callable[[Any], Any]] = {}
         mutable_fields: Set[str] = set()
 
-        # Make sure all fields are defined with type annotation
         for field_name, value in namespace.items():
             if (
                 should_touch_field(value=value)
@@ -236,24 +221,19 @@ class BaseModelMetaclass(pydantic._internal._model_construction.ModelMetaclass):
                     f"field {field_name} is defined without type annotation"
                 )
 
-        # Validate fields types and substitute bson fields
         for field_name, field_type in annotations.items():
             if not is_dunder(field_name) and should_touch_field(type_=field_type):
                 substituted_type = validate_type(field_type)
                 annotations[field_name] = substituted_type
-                # Handle BSON serialized fields after substitution to allow some
-                # builtin substitutions
                 bson_serializer = _get_bson_serializer(substituted_type)
                 if bson_serializer is not None:
                     bson_serializers[field_name] = bson_serializer
 
-        # Validate fields
         for field_name, field_type in annotations.items():
             value = namespace.get(field_name, Undefined)
 
             if is_dunder(field_name) or not should_touch_field(value, field_type):
                 continue  # pragma: no cover
-                # https://github.com/nedbat/coveragepy/issues/198
 
             if isinstance(value, PDFieldInfo):
                 raise TypeError("please use odmantic.Field instead of pydantic.Field")
@@ -365,8 +345,6 @@ class BaseModelMetaclass(pydantic._internal._model_construction.ModelMetaclass):
                         primary_field=False, key_name=field_name, model_config=config
                     )
 
-        # NOTE: Duplicate key detection make sur that at most one primary key is
-        # defined
         duplicate_key = find_duplicate_key(odm_fields.values())
         if duplicate_key is not None:
             raise TypeError(f"Duplicated key_name: {duplicate_key} in {name}")
@@ -395,7 +373,6 @@ class BaseModelMetaclass(pydantic._internal._model_construction.ModelMetaclass):
         )
 
         if is_custom_cls:
-            # Handle calls from pydantic.main.create_model (used internally by FastAPI)
             patched_bases = []
             for b in bases:
                 if hasattr(b, "__pydantic_model__"):
@@ -403,8 +380,6 @@ class BaseModelMetaclass(pydantic._internal._model_construction.ModelMetaclass):
                 else:
                     patched_bases.append(b)
             bases = tuple(patched_bases)
-            # Nullify unset docstring (to avoid getting the docstrings from the parent
-            # classes)
             if namespace.get("__doc__", None) is None:
                 namespace["__doc__"] = ""
 
@@ -412,14 +387,12 @@ class BaseModelMetaclass(pydantic._internal._model_construction.ModelMetaclass):
 
         if is_custom_cls:
             config: ODMConfigDict = namespace["model_config"]
-            # Patch Model related fields to build a "pure" pydantic model
             odm_fields: Dict[str, ODMBaseField] = namespace["__odm_fields__"]
             for field_name, field in odm_fields.items():
                 if isinstance(field, (ODMReference, ODMEmbedded)):
                     namespace["__annotations__"][field_name] = (
                         field.model.__pydantic_model__
                     )
-            # Build the pydantic model
             pydantic_cls = (
                 pydantic._internal._model_construction.ModelMetaclass.__new__(
                     mcs,
@@ -429,7 +402,6 @@ class BaseModelMetaclass(pydantic._internal._model_construction.ModelMetaclass):
                     **kwargs,
                 )
             )
-            # Change the title to generate clean JSON schemas from this "pure" model
             if config["title"] is None:
                 pydantic_cls.model_config["title"] = name
             cls.__pydantic_model__ = pydantic_cls
@@ -484,7 +456,6 @@ class ModelMetaclass(BaseModelMetaclass):
             else:
                 cls_name = name
                 if cls_name.endswith("Model"):
-                    # TODO document this
                     cls_name = cls_name[:-5]  # Strip Model in the class name
                 collection_name = to_snake_case(cls_name)
             raise_on_invalid_collection_name(collection_name, cls_name=name)
@@ -524,12 +495,6 @@ BaseT = TypeVar("BaseT", bound="_BaseODMModel")
 
 
 class _BaseODMModel(pydantic.BaseModel, metaclass=ABCMeta):
-    """Base class for [Model][odmantic.model.Model] and
-    [EmbeddedModel][odmantic.model.EmbeddedModel].
-
-    !!! warning
-        This internal class should never be instanciated directly.
-    """
 
     if TYPE_CHECKING:
         __odm_fields__: ClassVar[Dict[str, ODMBaseField]] = {}
@@ -537,8 +502,6 @@ class _BaseODMModel(pydantic.BaseModel, metaclass=ABCMeta):
         __mutable_fields__: ClassVar[FrozenSet[str]] = frozenset()
         __references__: ClassVar[Tuple[str, ...]] = ()
         __pydantic_model__: ClassVar[Type[BaseBSONModel]]
-        # __fields_modified__ is not a ClassVar but this allows to hide this field from
-        # the dataclass transform generated constructor
         __fields_modified__: ClassVar[Set[str]] = set()
         model_config: ClassVar[ODMConfigDict]
 
@@ -549,16 +512,12 @@ class _BaseODMModel(pydantic.BaseModel, metaclass=ABCMeta):
         object.__setattr__(self, "__fields_modified__", set(self.__odm_fields__.keys()))
 
     @classmethod
-    # TODO: rename to model_validate
     def validate(cls: Type[BaseT], value: Any) -> BaseT:
         if isinstance(value, cls):
-            # Do not copy the object as done in pydantic
-            # This enable to keep the same python object
             return value
         return super().model_validate(value)
 
     def __repr_args__(self) -> "ReprArgs":
-        # Place the id field first in the repr string
         args = list(super().__repr_args__())
         id_arg = next((arg for arg in args if arg[0] == "id"), None)
         if id_arg is None:
@@ -700,12 +659,9 @@ class _BaseODMModel(pydantic.BaseModel, metaclass=ABCMeta):
                     continue
                 patch_dict[k] = v
         patched_instance_dict = {**self.model_dump(), **patch_dict}
-        # FIXME: improve performance by only running updated field validators and then
-        # model validators
         patched_instance = self.validate(patched_instance_dict)
         for name, new_value in patched_instance.__dict__.items():
             if self.__dict__[name] != new_value:
-                # Manually change the field to avoid running the validators again
                 self.__dict__[name] = new_value
                 self.model_fields_set.add(name)
                 self.__fields_modified__.add(name)
@@ -718,7 +674,7 @@ class _BaseODMModel(pydantic.BaseModel, metaclass=ABCMeta):
         "doc is deprecated, please use model_dump_doc instead",
     )
     def doc(self, include: Optional["AbstractSetIntStr"] = None) -> Dict[str, Any]:
-        return self.model_dump_doc(include=include)
+        pass
 
     def model_dump_doc(
         self, include: Optional["AbstractSetIntStr"] = None
@@ -768,7 +724,6 @@ class _BaseODMModel(pydantic.BaseModel, metaclass=ABCMeta):
                 doc[field.key_name] = raw_doc[field_name]
 
         if model.model_config["extra"] == "allow":
-            # raw_doc is indexed by field name so we compare against odm field names
             extras = set(raw_doc.keys()) - set(self.__odm_fields__.keys())
             for extra in extras:
                 value = raw_doc[extra]
@@ -785,7 +740,7 @@ class _BaseODMModel(pydantic.BaseModel, metaclass=ABCMeta):
         "parse_doc is deprecated, please use model_validate_doc instead",
     )
     def parse_doc(cls: Type[BaseT], raw_doc: Dict) -> BaseT:
-        return cls.model_validate_doc(raw_doc)
+        pass
 
     @classmethod
     def model_validate_doc(cls: Type[BaseT], raw_doc: Dict) -> BaseT:
@@ -939,11 +894,6 @@ class _BaseODMModel(pydantic.BaseModel, metaclass=ABCMeta):
 
 
 class Model(_BaseODMModel, metaclass=ModelMetaclass):
-    """Class that can be extended to create an ODMantic Model.
-
-    Each model will be bound to a MongoDB collection. You can customize the collection
-    name by setting the `__collection__` class variable in the model classes.
-    """
 
     if TYPE_CHECKING:
         __collection__: ClassVar[str] = ""
@@ -953,7 +903,6 @@ class Model(_BaseODMModel, metaclass=ModelMetaclass):
 
     def __setattr__(self, name: str, value: Any) -> None:
         if name == self.__primary_field__:
-            # TODO implement
             raise NotImplementedError(
                 "Reassigning a new primary key is not supported yet"
             )
@@ -1040,8 +989,4 @@ class Model(_BaseODMModel, metaclass=ModelMetaclass):
 
 
 class EmbeddedModel(_BaseODMModel, metaclass=EmbeddedModelMetaclass):
-    """Class that can be extended to create an ODMantic Embedded Model.
-
-    An embedded document cannot be persisted directly to the database but should be
-    integrated in a regular ODMantic Model.
-    """
+    pass

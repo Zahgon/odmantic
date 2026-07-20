@@ -195,32 +195,6 @@ class AIOSessionBase(metaclass=ABCMeta):
 
 
 class AIOSession(AIOSessionBase, AsyncContextManager):
-    """An AsyncIO session object for ordering sequential operations.
-
-
-    Sessions can be created from the engine directly by using the
-    [AIOEngine.session][odmantic.engine.AIOEngine.session] method.
-
-    Example usage as a context manager:
-    ```python
-    engine = AIOEngine(...)
-    async with engine.session() as session:
-        john = await session.find(User, User.name == "John")
-        john.name = "Doe"
-        await session.save(john)
-    ```
-
-    Example raw usage:
-    ```python
-    engine = AIOEngine(...)
-    session = engine.session()
-    await session.start()
-    john = await session.find(User, User.name == "John")
-    john.name = "Doe"
-    await session.save(john)
-    await session.end()
-    ```
-    """
 
     def __init__(self, engine: ODMEngine.AIOEngine):
         self.engine = engine
@@ -228,7 +202,7 @@ class AIOSession(AIOSessionBase, AsyncContextManager):
 
     @property
     def is_started(self) -> bool:
-        return self.session is not None
+        pass
 
     def get_driver_session(self) -> AsyncIOMotorClientSession:
         """Return the underlying Motor Session"""
@@ -237,17 +211,10 @@ class AIOSession(AIOSessionBase, AsyncContextManager):
         return self.session
 
     async def start(self) -> None:
-        """Start the logical Mongo session."""
-        if self.is_started:
-            raise RuntimeError("Session is already started")
-        self.session = await self.engine.client.start_session()
+        pass
 
     async def end(self) -> None:
-        """Finish the logical session."""
-        if self.session is None:
-            raise RuntimeError("Session is not started")
-        await self.session.end_session()
-        self.session = None
+        pass
 
     async def __aenter__(self) -> "AIOSession":
         await self.start()
@@ -262,43 +229,10 @@ class AIOSession(AIOSessionBase, AsyncContextManager):
         await self.end()
 
     def transaction(self) -> AIOTransaction:
-        """Create a transaction in the existing session"""
-        return AIOTransaction(self)
+        pass
 
 
 class AIOTransaction(AIOSessionBase, AsyncContextManager):
-    """A transaction object to aggregate sequential operations.
-
-    Transactions can be created from the engine using the
-    [AIOEngine.transaction][odmantic.engine.AIOEngine.transaction]
-    method or they can be created during an existing session by using
-    [AIOSession.transaction][odmantic.session.AIOSession.transaction].
-
-    Example usage as a context manager:
-    ```python
-    engine = AIOEngine(...)
-    async with engine.transaction() as transaction:
-        john = await transaction.find(User, User.name == "John")
-        john.name = "Doe"
-        await transaction.save(john)
-        await transaction.commit()
-    ```
-
-    Example raw usage:
-    ```python
-    engine = AIOEngine(...)
-    transaction = engine.transaction()
-    await transaction.start()
-    john = await transaction.find(User, User.name == "John")
-    john.name = "Doe"
-    await transaction.save(john)
-    await transaction.commit()
-    ```
-
-    Warning:
-        MongoDB transaction are only supported on replicated clusters: either directly a
-        replicaSet or a sharded cluster with replication enabled.
-    """
 
     def __init__(self, context: Union[ODMEngine.AIOEngine, ODMEngine.AIOSession]):
         self._session_provided = isinstance(context, ODMEngine.AIOSession)
@@ -323,36 +257,13 @@ class AIOTransaction(AIOSessionBase, AsyncContextManager):
         return self.session.get_driver_session()
 
     async def start(self) -> None:
-        """Initiate the transaction."""
-        if self._transaction_started:
-            raise RuntimeError("Transaction already started")
-        if not self._session_provided:
-            await self.session.start()
-        assert self.session.session is not None
-        self._transaction_context = (
-            await self.session.session.start_transaction().__aenter__()
-        )
-        self._transaction_started = True
+        pass
 
     async def commit(self) -> None:
-        """Commit the changes and close the transaction."""
-        if not self._transaction_started:
-            raise RuntimeError("Transaction not started")
-        assert self.session.session is not None
-        await self.session.session.commit_transaction()
-        self._transaction_started = False
-        if not self._session_provided:
-            await self.session.end()
+        pass
 
     async def abort(self) -> None:
-        """Discard the changes and drop the transaction"""
-        if not self._transaction_started:
-            raise RuntimeError("Transaction not started")
-        assert self.session.session is not None
-        await self.session.session.abort_transaction()
-        self._transaction_started = False
-        if not self._session_provided:
-            await self.session.end()
+        pass
 
     async def __aenter__(self) -> "AIOTransaction":
         await self.start()
@@ -540,31 +451,6 @@ class SyncSessionBase(metaclass=ABCMeta):
 
 
 class SyncSession(SyncSessionBase, ContextManager):
-    """A session object for ordering sequential operations.
-
-    Sessions can be created from the engine directly by using the
-    [SyncEngine.session][odmantic.engine.SyncEngine.session] method.
-
-    Example usage as a context manager:
-    ```python
-    engine = SyncEngine(...)
-    with engine.session() as session:
-        john = session.find(User, User.name == "John")
-        john.name = "Doe"
-        session.save(john)
-    ```
-
-    Example raw usage:
-    ```python
-    engine = SyncEngine(...)
-    session = engine.session()
-    session.start()
-    john = session.find(User, User.name == "John")
-    john.name = "Doe"
-    session.save(john)
-    session.end()
-    ```
-    """
 
     def __init__(self, engine: ODMEngine.SyncEngine):
         self.engine = engine
@@ -572,7 +458,7 @@ class SyncSession(SyncSessionBase, ContextManager):
 
     @property
     def is_started(self) -> bool:
-        return self.session is not None
+        pass
 
     def get_driver_session(self) -> ClientSession:
         """Return the underlying PyMongo Session"""
@@ -581,17 +467,10 @@ class SyncSession(SyncSessionBase, ContextManager):
         return self.session
 
     def start(self) -> None:
-        """Start the logical session."""
-        if self.is_started:
-            raise RuntimeError("Session is already started")
-        self.session = self.engine.client.start_session()
+        pass
 
     def end(self) -> None:
-        """Finish the logical session."""
-        if self.session is None:
-            raise RuntimeError("Session is not started")
-        self.session.end_session()
-        self.session = None
+        pass
 
     def __enter__(self) -> "SyncSession":
         self.start()
@@ -606,43 +485,10 @@ class SyncSession(SyncSessionBase, ContextManager):
         self.end()
 
     def transaction(self) -> SyncTransaction:
-        """Create a transaction in the existing session"""
-        return SyncTransaction(self)
+        pass
 
 
 class SyncTransaction(SyncSessionBase, ContextManager):
-    """A transaction object to aggregate sequential operations.
-
-    Transactions can be created from the engine using the
-    [SyncEngine.transaction][odmantic.engine.SyncEngine.transaction]
-    method or they can be created during an existing session by using
-    [SyncSession.transaction][odmantic.session.SyncSession.transaction].
-
-    Example usage as a context manager:
-    ```python
-    engine = SyncEngine(...)
-    with engine.transaction() as transaction:
-        john = transaction.find(User, User.name == "John")
-        john.name = "Doe"
-        transaction.save(john)
-        transaction.commit()
-    ```
-
-    Example raw usage:
-    ```python
-    engine = SyncEngine(...)
-    transaction = engine.transaction()
-    transaction.start()
-    john = transaction.find(User, User.name == "John")
-    john.name = "Doe"
-    transaction.save(john)
-    transaction.commit()
-    ```
-
-    Warning:
-        MongoDB transaction are only supported on replicated clusters: either directly a
-        replicaSet or a sharded cluster with replication enabled.
-    """
 
     def __init__(self, context: Union[ODMEngine.SyncEngine, ODMEngine.SyncSession]):
         self._session_provided = isinstance(context, ODMEngine.SyncSession)
@@ -667,34 +513,13 @@ class SyncTransaction(SyncSessionBase, ContextManager):
         return self.session.get_driver_session()
 
     def start(self) -> None:
-        """Initiate the transaction."""
-        if self._transaction_started:
-            raise RuntimeError("Transaction already started")
-        if not self._session_provided:
-            self.session.start()
-        assert self.session.session is not None
-        self._transaction_context = self.session.session.start_transaction().__enter__()
-        self._transaction_started = True
+        pass
 
     def commit(self) -> None:
-        """Commit the changes and close the transaction."""
-        if not self._transaction_started:
-            raise RuntimeError("Transaction not started")
-        assert self.session.session is not None
-        self.session.session.commit_transaction()
-        self._transaction_started = False
-        if not self._session_provided:
-            self.session.end()
+        pass
 
     def abort(self) -> None:
-        """Discard the changes and drop the transaction."""
-        if not self._transaction_started:
-            raise RuntimeError("Transaction not started")
-        assert self.session.session is not None
-        self.session.session.abort_transaction()
-        self._transaction_started = False
-        if not self._session_provided:
-            self.session.end()
+        pass
 
     def __enter__(self) -> "SyncTransaction":
         self.start()
